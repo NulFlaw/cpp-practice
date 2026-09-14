@@ -32,6 +32,58 @@ header {
 h1 { font-size: 18px; margin: 0; }
 .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.mode-tabs {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.mode-tabs button {
+  border: none;
+  border-radius: 0;
+  background: var(--panel);
+  padding: 6px 14px;
+  font-weight: 600;
+}
+.mode-tabs button + button { border-left: 1px solid var(--border); }
+.mode-tabs button.active {
+  background: var(--accent);
+  color: #082f49;
+}
+.mode-hint { margin-top: 10px !important; color: var(--accent) !important; }
+.md-body p { margin: 0 0 10px; }
+.md-body p:last-child { margin-bottom: 0; }
+.md-body ul, .md-body ol { margin: 0 0 10px; padding-left: 1.25em; }
+.md-body li { margin: 4px 0; }
+.md-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 12px;
+  font-size: 13px;
+}
+.md-body th, .md-body td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.md-body th { background: var(--panel); color: var(--text); }
+.md-body code {
+  font-family: Consolas, "Courier New", monospace;
+  background: #020617;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.follow-block h3 { color: var(--warn) !important; }
+.tip-block .body { color: var(--muted); }
+aside .level-tabs button {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  padding: 6px 8px;
+}
 button, select, input {
   background: var(--panel);
   color: var(--text);

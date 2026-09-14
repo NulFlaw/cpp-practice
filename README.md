@@ -11,6 +11,7 @@
 我们以此为背景来组织练习：
 
 - **题库**：用牛客风格题目练语法与算法，尽快写得出、跑得通
+- **八股**：[`Cpp八股/`](Cpp八股/) 按主题整理虚函数、智能指针、移动语义、STL、多线程等面试问答
 - **规范**：鼓励对照 Core Guidelines 改代码习惯（如 RAII、避免裸 `new`/`delete`、优先 `const` / `span` / 智能指针等）
 - **工具链**：可用 `clang-tidy` 的 `cppcoreguidelines-*` 检查，与指南规则对齐
 
@@ -49,7 +50,12 @@ node verify-server.js
 |------|------|
 | `index.html` / `app.js` / `style.css` | 题库页面 |
 | `nowcoder/` | 牛客风格 Markdown 题库 |
-| `nowcoder-data.js` | 页面使用的题库数据 |
+| `Cpp八股/` | 大厂 C++ 面试高频问答（原理向） |
+| `nowcoder-data.js` | 刷题页数据 |
+| `bagu-data.js` | 八股页数据 |
 | `verify-server.js` | 本地编译与样例验证服务 |
 
-修改 `nowcoder/*.md` 后，在 `nowcoder` 目录执行 `node build-web-data.js` 可刷新网页数据。
+页面右上角可在「刷题 / 八股」间切换。
+
+修改 `nowcoder/*.md` 后，在 `nowcoder` 目录执行 `node build-web-data.js` 可刷新刷题数据。  
+修改 `Cpp八股/*.md` 后，在 `Cpp八股` 目录执行 `node build-web-data.js` 可刷新八股数据。

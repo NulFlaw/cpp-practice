@@ -1,9 +1,13 @@
-// 牛客风格题库页面：目录 + 分册 + 题目详情 + 本地样例验证
+// 牛客题库 + C++ 八股：目录 / 详情 / 本地样例验证
 (function () {
   const guide = window.NOWCODER_GUIDE;
   const catalog = window.NOWCODER_CATALOG;
   const problems = window.NOWCODER_PROBLEMS;
+  const baguGuide = window.BAGU_GUIDE;
+  const baguCatalog = window.BAGU_CATALOG || [];
+  const baguQuestions = window.BAGU_QUESTIONS || [];
 
+  let mode = "oj"; // oj | bagu
   let currentLevel = "all";
   let currentFile = null;
   let currentId = null;
@@ -18,8 +22,8 @@
   const toastEl = document.getElementById("toast");
   const headerSub = document.getElementById("headerSub");
   const serverBadge = document.getElementById("serverBadge");
-
-  if (guide && guide.summary) headerSub.textContent = guide.summary + " · 牛客网风格";
+  const copyBtn = document.getElementById("copyBtn");
+  const footerEl = document.getElementById("footer");
 
   function escapeHtml(s) {
     return String(s)
@@ -28,9 +32,117 @@
       .replace(/>/g, "&gt;");
   }
 
+  function inlineMd(s) {
+    let t = escapeHtml(s);
+    t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+    t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    return t;
+  }
+
+  /** 轻量 Markdown → HTML（列表 / 表格 / 段落） */
+  function renderMd(md) {
+    if (!md) return "";
+    const lines = String(md).replace(/\r\n/g, "\n").split("\n");
+    const out = [];
+    let i = 0;
+
+    function flushPara(buf) {
+      const text = buf.join(" ").trim();
+      if (text) out.push(`<p>${inlineMd(text)}</p>`);
+      buf.length = 0;
+    }
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      if (!line.trim()) {
+        i++;
+        continue;
+      }
+
+      // 表格
+      if (
+        line.includes("|") &&
+        i + 1 < lines.length &&
+        /^\s*\|?[\s-:|]+\|?\s*$/.test(lines[i + 1])
+      ) {
+        const rows = [];
+        while (i < lines.length && lines[i].includes("|")) {
+          if (/^\s*\|?[\s-:|]+\|?\s*$/.test(lines[i])) {
+            i++;
+            continue;
+          }
+          const cells = lines[i]
+            .replace(/^\s*\|/, "")
+            .replace(/\|\s*$/, "")
+            .split("|")
+            .map((c) => c.trim());
+          rows.push(cells);
+          i++;
+        }
+        if (rows.length) {
+          let html = "<table><thead><tr>";
+          rows[0].forEach((c) => {
+            html += `<th>${inlineMd(c)}</th>`;
+          });
+          html += "</tr></thead><tbody>";
+          rows.slice(1).forEach((r) => {
+            html += "<tr>";
+            r.forEach((c) => {
+              html += `<td>${inlineMd(c)}</td>`;
+            });
+            html += "</tr>";
+          });
+          html += "</tbody></table>";
+          out.push(html);
+        }
+        continue;
+      }
+
+      // 无序 / 有序列表
+      if (/^\s*[-*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line)) {
+        const ordered = /^\s*\d+\.\s+/.test(line);
+        const tag = ordered ? "ol" : "ul";
+        const items = [];
+        while (i < lines.length) {
+          const L = lines[i];
+          const m = ordered
+            ? L.match(/^\s*\d+\.\s+(.*)$/)
+            : L.match(/^\s*[-*]\s+(.*)$/);
+          if (!m) break;
+          items.push(`<li>${inlineMd(m[1])}</li>`);
+          i++;
+        }
+        out.push(`<${tag}>${items.join("")}</${tag}>`);
+        continue;
+      }
+
+      // 普通段落（连续非空、非特殊行）
+      const buf = [];
+      while (
+        i < lines.length &&
+        lines[i].trim() &&
+        !lines[i].includes("|") &&
+        !/^\s*[-*]\s+/.test(lines[i]) &&
+        !/^\s*\d+\.\s+/.test(lines[i])
+      ) {
+        buf.push(lines[i].trim());
+        i++;
+      }
+      flushPara(buf);
+    }
+
+    return out.join("");
+  }
+
   function levelName(id) {
     const lv = catalog.find((x) => x.id === id);
     return lv ? lv.name : id;
+  }
+
+  function topicName(id) {
+    const t = baguCatalog.find((x) => x.id === id);
+    return t ? t.name : id;
   }
 
   function codeKey(id) {
@@ -66,7 +178,7 @@ int main() {
 `;
   }
 
-  const INDENT = "    "; // 4 空格，符合常见 C++ 习惯
+  const INDENT = "    ";
 
   function enableSmartIndent(editor) {
     if (!editor || editor.dataset.smartIndent === "1") return;
@@ -139,7 +251,10 @@ int main() {
       editor.value = v.slice(0, from) + out + v.slice(to);
       const shrink = block.length - out.length;
       if (start === end) {
-        editor.selectionStart = editor.selectionEnd = Math.max(from, start - Math.min(INDENT.length, shrink));
+        editor.selectionStart = editor.selectionEnd = Math.max(
+          from,
+          start - Math.min(INDENT.length, shrink)
+        );
       } else {
         editor.selectionStart = from;
         editor.selectionEnd = from + out.length;
@@ -148,7 +263,6 @@ int main() {
     }
 
     editor.addEventListener("keydown", (e) => {
-      // Tab / Shift+Tab
       if (e.key === "Tab") {
         e.preventDefault();
         if (e.shiftKey) unindentSelection();
@@ -156,7 +270,6 @@ int main() {
         return;
       }
 
-      // Enter：继承缩进；上一行以 { 结尾则再缩进一层；光标夹在 {|} 之间则自动换行对齐 }
       if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         const v = editor.value;
@@ -173,11 +286,7 @@ int main() {
         let insert = "\n" + baseIndent;
         if (openBrace) insert += INDENT;
 
-        // for/while/if/else/switch 后紧跟 { 已覆盖；若写成 for(...) 下一行再写 {，只继承原缩进即可
         if (openBrace && nextIsClose) {
-          // {
-          //     |
-          // }
           insert = "\n" + baseIndent + INDENT + "\n" + baseIndent;
           editor.value = v.slice(0, start) + insert + v.slice(end);
           const caret = start + ("\n" + baseIndent + INDENT).length;
@@ -190,7 +299,6 @@ int main() {
         return;
       }
 
-      // 单独输入 }：若当前行只有空白，回退一层缩进
       if (e.key === "}") {
         const v = editor.value;
         const start = editor.selectionStart;
@@ -200,13 +308,60 @@ int main() {
         const prefix = v.slice(ls, start);
         if (/^[ \t]+$/.test(prefix) && prefix.length >= INDENT.length) {
           e.preventDefault();
-          const dedented = prefix.slice(0, Math.max(0, prefix.length - INDENT.length)) + "}";
+          const dedented =
+            prefix.slice(0, Math.max(0, prefix.length - INDENT.length)) + "}";
           replaceRange(ls, start, dedented);
         }
       }
     });
   }
 
+  function updateChrome() {
+    if (mode === "oj") {
+      if (guide && guide.summary) {
+        headerSub.textContent = guide.summary + " · 牛客网风格";
+      }
+      searchEl.placeholder = "搜题目 / 编号 / 专题";
+      copyBtn.textContent = "复制参考代码";
+      copyBtn.style.display = "";
+      if (serverBadge) serverBadge.style.display = "";
+      if (footerEl) {
+        footerEl.innerHTML =
+          '验证：运行 <code>start-verify.bat</code> 后打开 <code>http://127.0.0.1:3789/</code> → 选题写代码 → 点「提交验证」。也可切换到「八股」浏览面试问答。';
+      }
+    } else {
+      if (baguGuide && baguGuide.summary) {
+        headerSub.textContent = baguGuide.summary + " · 面试口述";
+      }
+      searchEl.placeholder = "搜问题 / 专题 / 关键词";
+      copyBtn.textContent = "复制答要点";
+      copyBtn.style.display = "";
+      if (serverBadge) serverBadge.style.display = "none";
+      if (footerEl) {
+        footerEl.innerHTML =
+          "八股模式：左侧按专题浏览，右侧看答要点与追问。建议结合项目经历口述，不要死记。";
+      }
+    }
+
+    document.querySelectorAll("#modeTabs button").forEach((btn) => {
+      btn.classList.toggle("active", btn.getAttribute("data-mode") === mode);
+    });
+  }
+
+  function setMode(next) {
+    if (next === mode) return;
+    const editor = document.getElementById("codeEditor");
+    if (editor && currentId && mode === "oj") saveCode(currentId, editor.value);
+    mode = next;
+    currentLevel = "all";
+    currentFile = null;
+    currentId = null;
+    view = "home";
+    updateChrome();
+    renderAll();
+  }
+
+  // ---------- 刷题数据过滤 ----------
   function filteredProblems() {
     const q = searchEl.value.trim().toLowerCase();
     return problems.filter((p) => {
@@ -223,7 +378,7 @@ int main() {
     });
   }
 
-  function currentBatches() {
+  function currentBatchesOj() {
     if (currentLevel === "all") {
       return catalog.flatMap((lv) =>
         lv.files.map((f) => ({ ...f, level: lv.id, levelName: lv.name }))
@@ -234,67 +389,157 @@ int main() {
     return lv.files.map((f) => ({ ...f, level: lv.id, levelName: lv.name }));
   }
 
+  // ---------- 八股数据过滤 ----------
+  function filteredBagu() {
+    const q = searchEl.value.trim().toLowerCase();
+    return baguQuestions.filter((item) => {
+      if (currentLevel !== "all" && item.topic !== currentLevel) return false;
+      if (currentFile && item.file !== currentFile) return false;
+      if (!q) return true;
+      return (
+        item.title.toLowerCase().includes(q) ||
+        String(item.num).includes(q) ||
+        item.id.toLowerCase().includes(q) ||
+        (item.answer || "").toLowerCase().includes(q) ||
+        (item.followUp || "").toLowerCase().includes(q) ||
+        (item.topicName || "").toLowerCase().includes(q) ||
+        (item.file || "").toLowerCase().includes(q)
+      );
+    });
+  }
+
+  function currentBatchesBagu() {
+    const list =
+      currentLevel === "all"
+        ? baguCatalog
+        : baguCatalog.filter((t) => t.id === currentLevel);
+    return list.map((t) => ({
+      level: t.id,
+      levelName: t.name,
+      file: t.file,
+      range: `Q1～Q${t.count}`,
+      topic: t.desc,
+      count: t.count,
+    }));
+  }
+
   function renderTabs() {
     levelTabsEl.innerHTML = "";
-    const tabs = [{ id: "all", name: "全部" }].concat(
-      catalog.map((lv) => ({ id: lv.id, name: `${lv.name}${lv.count}` }))
-    );
-    tabs.forEach((t) => {
-      const btn = document.createElement("button");
-      btn.textContent = t.name;
-      btn.className = currentLevel === t.id ? "active" : "";
-      btn.onclick = () => {
-        currentLevel = t.id;
-        currentFile = null;
-        view = "home";
-        renderAll();
-      };
-      levelTabsEl.appendChild(btn);
-    });
+    if (mode === "oj") {
+      const tabs = [{ id: "all", name: "全部" }].concat(
+        catalog.map((lv) => ({ id: lv.id, name: `${lv.name}${lv.count}` }))
+      );
+      tabs.forEach((t) => {
+        const btn = document.createElement("button");
+        btn.textContent = t.name;
+        btn.className = currentLevel === t.id ? "active" : "";
+        btn.onclick = () => {
+          currentLevel = t.id;
+          currentFile = null;
+          view = "home";
+          renderAll();
+        };
+        levelTabsEl.appendChild(btn);
+      });
+    } else {
+      const tabs = [{ id: "all", name: "全部" }].concat(
+        baguCatalog.map((t) => ({ id: t.id, name: t.name }))
+      );
+      tabs.forEach((t) => {
+        const btn = document.createElement("button");
+        btn.textContent = t.name;
+        btn.title = t.name;
+        btn.className = currentLevel === t.id ? "active" : "";
+        btn.onclick = () => {
+          currentLevel = t.id;
+          currentFile = null;
+          view = "home";
+          renderAll();
+        };
+        levelTabsEl.appendChild(btn);
+      });
+    }
   }
 
   function renderBatches() {
     batchListEl.innerHTML = "";
-    const batches = currentBatches();
-    batches.forEach((b) => {
-      const el = document.createElement("button");
-      el.className = "batch-item" + (currentFile === b.file ? " active" : "");
-      el.innerHTML = `
-        <div class="batch-title">${escapeHtml(b.levelName)} · ${escapeHtml(b.range)}</div>
-        <div class="batch-meta">${escapeHtml(b.topic)}</div>`;
-      el.onclick = () => {
-        currentLevel = b.level;
-        currentFile = b.file;
-        view = "home";
-        const items = filteredProblems();
-        if (items.length) selectProblem(items[0].id);
-        else renderAll();
-      };
-      batchListEl.appendChild(el);
-    });
-  }
-
-  function renderList() {
-    const items = filteredProblems();
-    listEl.innerHTML = "";
-    items.forEach((p) => {
-      const li = document.createElement("li");
-      li.className = p.id === currentId ? "active" : "";
-      li.innerHTML = `
-        <div>
-          <div class="title">${escapeHtml(p.title)}</div>
-          <div class="point">${escapeHtml(p.file)} · 第 ${p.num} 题</div>
-        </div>
-        <div class="id">#${p.num}</div>`;
-      li.onclick = () => selectProblem(p.id);
-      listEl.appendChild(li);
-    });
-    if (!items.length) {
-      listEl.innerHTML = '<li style="cursor:default">没有匹配的题目</li>';
+    if (mode === "oj") {
+      currentBatchesOj().forEach((b) => {
+        const el = document.createElement("button");
+        el.className = "batch-item" + (currentFile === b.file ? " active" : "");
+        el.innerHTML = `
+          <div class="batch-title">${escapeHtml(b.levelName)} · ${escapeHtml(b.range)}</div>
+          <div class="batch-meta">${escapeHtml(b.topic)}</div>`;
+        el.onclick = () => {
+          currentLevel = b.level;
+          currentFile = b.file;
+          view = "home";
+          const items = filteredProblems();
+          if (items.length) selectProblem(items[0].id);
+          else renderAll();
+        };
+        batchListEl.appendChild(el);
+      });
+    } else {
+      currentBatchesBagu().forEach((b) => {
+        const el = document.createElement("button");
+        el.className = "batch-item" + (currentFile === b.file ? " active" : "");
+        el.innerHTML = `
+          <div class="batch-title">${escapeHtml(b.levelName)} · ${b.count} 题</div>
+          <div class="batch-meta">${escapeHtml(b.topic)}</div>`;
+        el.onclick = () => {
+          currentLevel = b.level;
+          currentFile = b.file;
+          view = "home";
+          const items = filteredBagu();
+          if (items.length) selectBagu(items[0].id);
+          else renderAll();
+        };
+        batchListEl.appendChild(el);
+      });
     }
   }
 
-  function renderHome() {
+  function renderList() {
+    listEl.innerHTML = "";
+    if (mode === "oj") {
+      const items = filteredProblems();
+      items.forEach((p) => {
+        const li = document.createElement("li");
+        li.className = p.id === currentId ? "active" : "";
+        li.innerHTML = `
+          <div>
+            <div class="title">${escapeHtml(p.title)}</div>
+            <div class="point">${escapeHtml(p.file)} · 第 ${p.num} 题</div>
+          </div>
+          <div class="id">#${p.num}</div>`;
+        li.onclick = () => selectProblem(p.id);
+        listEl.appendChild(li);
+      });
+      if (!items.length) {
+        listEl.innerHTML = '<li style="cursor:default">没有匹配的题目</li>';
+      }
+    } else {
+      const items = filteredBagu();
+      items.forEach((q) => {
+        const li = document.createElement("li");
+        li.className = q.id === currentId ? "active" : "";
+        li.innerHTML = `
+          <div>
+            <div class="title">${escapeHtml(q.title)}</div>
+            <div class="point">${escapeHtml(q.topicName)} · Q${q.num}</div>
+          </div>
+          <div class="id">Q${q.num}</div>`;
+        li.onclick = () => selectBagu(q.id);
+        listEl.appendChild(li);
+      });
+      if (!items.length) {
+        listEl.innerHTML = '<li style="cursor:default">没有匹配的问题</li>';
+      }
+    }
+  }
+
+  function renderHomeOj() {
     let html = `
       <div class="guide-card">
         <h2>C++ 分梯度题库（牛客网风格）</h2>
@@ -309,6 +554,7 @@ int main() {
         </ul>
         <p><strong style="color:var(--text)">建议做题顺序</strong></p>
         <ul>${guide.order.map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ul>
+        <p class="mode-hint">右上角可切换到「八股」浏览面试问答。</p>
       </div>`;
 
     const levelsToShow =
@@ -337,6 +583,52 @@ int main() {
         else renderAll();
       };
     });
+  }
+
+  function renderHomeBagu() {
+    let html = `
+      <div class="guide-card">
+        <h2>C++ 大厂面试八股</h2>
+        <p>${escapeHtml(baguGuide.summary)}</p>
+        <p>${escapeHtml(baguGuide.format)}</p>
+        <p><strong style="color:var(--text)">怎么用</strong></p>
+        <ul>${(baguGuide.tips || []).map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ul>
+        <p><strong style="color:var(--text)">建议优先级</strong></p>
+        <ul>${(baguGuide.priority || []).map((x) => `<li>${escapeHtml(x)}</li>`).join("")}</ul>
+        <p class="mode-hint">右上角可切回「刷题」做编程题。</p>
+      </div>
+      <div class="level-block">
+        <h3><span class="badge level">专题</span> ${baguCatalog.length} 个分册 · ${baguQuestions.length} 题</h3>
+        <div class="file-grid">`;
+
+    const topics =
+      currentLevel === "all"
+        ? baguCatalog
+        : baguCatalog.filter((t) => t.id === currentLevel);
+
+    topics.forEach((t) => {
+      html += `<button class="file-card" data-topic="${t.id}" data-file="${escapeHtml(t.file)}">
+        <div class="name">${escapeHtml(t.name)}</div>
+        <div class="meta">${t.count} 题 · ${escapeHtml(t.desc)}</div>
+      </button>`;
+    });
+    html += `</div></div>`;
+
+    contentEl.innerHTML = html;
+    contentEl.querySelectorAll(".file-card").forEach((card) => {
+      card.onclick = () => {
+        currentLevel = card.getAttribute("data-topic");
+        currentFile = card.getAttribute("data-file");
+        const items = filteredBagu();
+        if (items.length) selectBagu(items[0].id);
+        else renderAll();
+      };
+    });
+  }
+
+  function renderHome() {
+    if (mode === "oj") renderHomeOj();
+    else renderHomeBagu();
   }
 
   function statusClass(st) {
@@ -519,14 +811,80 @@ int main() {
       saveCode(p.id, e.target.value);
     });
     enableSmartIndent(editor);
-    // 提示：Tab 缩进，Shift+Tab 取消缩进，Enter 自动对齐
     if (!document.getElementById("indentHint")) {
       const tip = document.createElement("div");
       tip.id = "indentHint";
       tip.className = "indent-hint";
-      tip.textContent = "编辑提示：Tab 缩进 · Shift+Tab 取消缩进 · Enter 自动对齐（遇到 { 会多缩进一层）";
+      tip.textContent =
+        "编辑提示：Tab 缩进 · Shift+Tab 取消缩进 · Enter 自动对齐（遇到 { 会多缩进一层）";
       editor.parentElement.insertBefore(tip, editor);
     }
+
+    renderTabs();
+    renderBatches();
+    renderList();
+  }
+
+  function renderBaguQuestion(q) {
+    view = "problem";
+    currentId = q.id;
+    currentLevel = q.topic;
+    currentFile = q.file;
+
+    contentEl.innerHTML = `
+      <div class="problem-view bagu-view">
+        <div class="problem-head">
+          <div>
+            <h2>Q${q.num}. ${escapeHtml(q.title)}</h2>
+            <div class="badges">
+              <span class="badge level">${escapeHtml(q.topicName)}</span>
+              <span class="badge">${escapeHtml(q.file)}</span>
+              <span class="badge">${escapeHtml(q.id)}</span>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button id="backHomeBtn" class="ghost">返回目录</button>
+            <button id="copyInlineBtn" class="ghost">复制答要点</button>
+            <button id="prevQBtn" class="ghost">上一题</button>
+            <button id="nextQBtn" class="ghost">下一题</button>
+          </div>
+        </div>
+
+        <div class="oj-block">
+          <h3>【答要点】</h3>
+          <div class="body md-body">${renderMd(q.answer)}</div>
+        </div>
+        ${
+          q.followUp
+            ? `<div class="oj-block follow-block">
+          <h3>【追问】</h3>
+          <div class="body md-body">${renderMd(q.followUp)}</div>
+        </div>`
+            : ""
+        }
+        <div class="oj-block tip-block">
+          <h3>【口述提示】</h3>
+          <div class="body">先一句话下定义，再讲原理 / 对比 / 坑点，最后用项目里的例子收尾。追问部分优先准备。</div>
+        </div>
+      </div>`;
+
+    document.getElementById("backHomeBtn").onclick = () => {
+      view = "home";
+      currentId = null;
+      renderAll();
+    };
+    document.getElementById("copyInlineBtn").onclick = copyCode;
+
+    const siblings = filteredBagu();
+    const idx = siblings.findIndex((x) => x.id === q.id);
+    document.getElementById("prevQBtn").onclick = () => {
+      if (idx > 0) selectBagu(siblings[idx - 1].id);
+      else showToast("已经是第一题");
+    };
+    document.getElementById("nextQBtn").onclick = () => {
+      if (idx >= 0 && idx < siblings.length - 1) selectBagu(siblings[idx + 1].id);
+      else showToast("已经是最后一题");
+    };
 
     renderTabs();
     renderBatches();
@@ -541,17 +899,41 @@ int main() {
     renderProblem(p);
   }
 
+  function selectBagu(id) {
+    const q = baguQuestions.find((x) => x.id === id);
+    if (!q) return;
+    renderBaguQuestion(q);
+  }
+
   async function copyCode() {
-    const p = problems.find((x) => x.id === currentId);
-    if (!p) {
-      showToast("请先选择一道题");
+    if (mode === "oj") {
+      const p = problems.find((x) => x.id === currentId);
+      if (!p) {
+        showToast("请先选择一道题");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(p.code);
+        showToast("已复制参考代码");
+      } catch (e) {
+        showToast("复制失败，请手动全选代码");
+      }
       return;
     }
+
+    const q = baguQuestions.find((x) => x.id === currentId);
+    if (!q) {
+      showToast("请先选择一道八股");
+      return;
+    }
+    const text = `Q${q.num}. ${q.title}\n\n【答要点】\n${q.answer}${
+      q.followUp ? `\n\n【追问】\n${q.followUp}` : ""
+    }`;
     try {
-      await navigator.clipboard.writeText(p.code);
-      showToast("已复制参考代码");
+      await navigator.clipboard.writeText(text);
+      showToast("已复制答要点");
     } catch (e) {
-      showToast("复制失败，请手动全选代码");
+      showToast("复制失败，请手动选择文本");
     }
   }
 
@@ -562,9 +944,15 @@ int main() {
   }
 
   function randomPick() {
-    const items = filteredProblems();
-    if (!items.length) return;
-    selectProblem(items[Math.floor(Math.random() * items.length)].id);
+    if (mode === "oj") {
+      const items = filteredProblems();
+      if (!items.length) return;
+      selectProblem(items[Math.floor(Math.random() * items.length)].id);
+    } else {
+      const items = filteredBagu();
+      if (!items.length) return;
+      selectBagu(items[Math.floor(Math.random() * items.length)].id);
+    }
   }
 
   function updateServerBadge() {
@@ -594,20 +982,32 @@ int main() {
     renderBatches();
     renderList();
     if (view === "problem" && currentId) {
-      const p = problems.find((x) => x.id === currentId);
-      if (p) {
-        renderProblem(p);
-        return;
+      if (mode === "oj") {
+        const p = problems.find((x) => x.id === currentId);
+        if (p) {
+          renderProblem(p);
+          return;
+        }
+      } else {
+        const q = baguQuestions.find((x) => x.id === currentId);
+        if (q) {
+          renderBaguQuestion(q);
+          return;
+        }
       }
     }
     renderHome();
   }
 
+  document.querySelectorAll("#modeTabs button").forEach((btn) => {
+    btn.onclick = () => setMode(btn.getAttribute("data-mode"));
+  });
+
   document.getElementById("copyBtn").onclick = copyCode;
   document.getElementById("randomBtn").onclick = randomPick;
   document.getElementById("homeBtn").onclick = () => {
     const editor = document.getElementById("codeEditor");
-    if (editor && currentId) saveCode(currentId, editor.value);
+    if (editor && currentId && mode === "oj") saveCode(currentId, editor.value);
     view = "home";
     currentId = null;
     currentFile = null;
@@ -619,6 +1019,7 @@ int main() {
     if (view === "home") renderHome();
   };
 
+  updateChrome();
   checkServer();
   setInterval(checkServer, 5000);
   renderAll();
