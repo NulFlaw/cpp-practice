@@ -319,7 +319,7 @@ int main() {
   function updateChrome() {
     if (mode === "oj") {
       if (guide && guide.summary) {
-        headerSub.textContent = guide.summary + " · 牛客网风格";
+        headerSub.textContent = guide.summary;
       }
       searchEl.placeholder = "搜题目 / 编号 / 专题";
       copyBtn.textContent = "复制参考代码";
@@ -542,7 +542,7 @@ int main() {
   function renderHomeOj() {
     let html = `
       <div class="guide-card">
-        <h2>C++ 分梯度题库（牛客网风格）</h2>
+        <h2>C++ 分梯度题库</h2>
         <p>${escapeHtml(guide.summary)}</p>
         <p>${escapeHtml(guide.format)}</p>
         <p>代码约定：${escapeHtml(guide.convention)}</p>
