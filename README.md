@@ -2,6 +2,20 @@
 
 150 道 C++ 题库网页：入门 50｜简单 50｜较难 30｜困难 20。支持在线作答、智能缩进、本地 g++ 样例验证。
 
+## 指导背景：C++ Core Guidelines
+
+本项目的学习路径与编码习惯，以 [**C++ Core Guidelines**](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines) 为权威参考。
+
+该指南由 **Bjarne Stroustrup**（C++ 之父）与 **Herb Sutter** 等主编，由 ISO C++ 基金会维护，是业界广泛认可的现代 C++（C++11 及更新）实践规范，覆盖资源管理、接口设计、类型安全、并发等内容。
+
+我们以此为背景来组织练习：
+
+- **题库**：用牛客风格题目练语法与算法，尽快写得出、跑得通
+- **规范**：鼓励对照 Core Guidelines 改代码习惯（如 RAII、避免裸 `new`/`delete`、优先 `const` / `span` / 智能指针等）
+- **工具链**：可用 `clang-tidy` 的 `cppcoreguidelines-*` 检查，与指南规则对齐
+
+指南原文仓库：[isocpp/CppCoreGuidelines](https://github.com/isocpp/CppCoreGuidelines)
+
 ## 功能
 
 - 按难度 / 分册浏览题目（题目描述、输入输出、样例、提示、参考代码）
