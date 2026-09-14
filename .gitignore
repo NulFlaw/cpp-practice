@@ -1,0 +1,7 @@
+.verify-tmp/
+*.exe
+*.o
+*.obj
+*.out
+.DS_Store
+node_modules/

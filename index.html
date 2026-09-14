@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>C++ 分梯度练习（牛客风格）</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>C++ 分梯度题库</h1>
+      <div class="sub" id="headerSub">入门 50 · 简单 50 · 较难 30 · 困难 20 · 牛客网风格</div>
+    </div>
+    <div class="controls">
+      <span id="serverBadge" class="server-badge off">验证服务：检测中…</span>
+      <input id="search" type="search" placeholder="搜题目 / 编号 / 专题" />
+      <button id="homeBtn" class="ghost">题库目录</button>
+      <button id="randomBtn" class="ghost">随机一道</button>
+      <button id="copyBtn" class="primary">复制参考代码</button>
+    </div>
+  </header>
+
+  <main>
+    <aside>
+      <div class="level-tabs" id="levelTabs"></div>
+      <div class="batch-list" id="batchList"></div>
+      <ul class="list" id="list"></ul>
+    </aside>
+
+    <section id="content">
+      <!-- 目录页 / 题目详情由 JS 渲染 -->
+    </section>
+  </main>
+
+  <footer id="footer">
+    验证：运行 <code>start-verify.bat</code> 后打开 <code>http://127.0.0.1:3789/</code> → 选题写代码 → 点「提交验证」。
+    也可复制到 <code>practice/src/main.cpp</code> 用 Cursor 编译运行。
+  </footer>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="nowcoder-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
